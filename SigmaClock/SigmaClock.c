@@ -15,6 +15,8 @@
 #define M_MINUS PORTB2
 #define M_PLUS  PORTD1
 
+#define TSET  PORTC0
+
 #define EN    PORTD3
 #define SEC   PORTD0
 
@@ -23,11 +25,20 @@
 #include <util/delay.h>
 
 unsigned volatile long numClicks  = 0;
-unsigned volatile long maxClicks = (86400*2);
 
-unsigned volatile int seconds = 0;
+unsigned volatile const long numMaxClicks        = (86400*2);
+unsigned volatile const long numMinClicks        = 0;
+unsigned volatile const int  numClicksInAnHour   = (3600*2);
+unsigned volatile const int  numClicksInAMinute  = (60*2);
+
 unsigned volatile int minutes = 0;
 unsigned volatile int hours   = 0;
+
+volatile char timeIsBeingSet = 0;
+volatile char hrPlusPrevState = 0;
+volatile char hrMinusPrevState = 0;
+volatile char minPlusPrevState = 0;
+volatile char minMinusPrevState = 0;
 
 // SETUP FUNCTIONS //////////////////////////////////////////////////////////
 
@@ -87,33 +98,59 @@ void setup() {
 	sei();
 }
 
-// INTERRUPTS //////////////////////////////////////////////////////////////////////
+// UTILITY METHODS /////////////////////////////////////////////////////////////////
 
-ISR( TIMER2_COMP_vect ) {
-	PORTD ^= (1 << SEC);
+void incrementNumClicks() {
 	numClicks++;
-	if( numClicks >= (86400*2) ) {
+	if( numClicks >= numMaxClicks ) {
 		numClicks = 0;
 	}
+}
+
+void incrementNumClicksBy( int num ) {
+	if( (numClicks+num) >= numMaxClicks ) {
+		numClicks = (numClicks+num)-numMaxClicks;
+	}
+	else {
+		numClicks = numClicks + num;
+	}
+}
+
+void decrementNumClicksBy( int num ) {
+	long temp = (numClicks-num);
+	if( temp < 0 ) {
+		numClicks = numMaxClicks-(num-numClicks);
+	}
+	else {
+		numClicks = numClicks - num;
+	}
+}
+
+void updateCounters() {
 	long numSeconds = numClicks/2;
 	int numMinutes = numSeconds/60;
 	int numHours = numMinutes/60;
 	
-	seconds = numSeconds%60;
 	minutes = numMinutes%60;
-	hours = numHours;
+	hours = numHours;	
 }
 
-volatile int timeIsBeingSet = 0;
+// INTERRUPTS //////////////////////////////////////////////////////////////////////
+
+ISR( TIMER2_COMP_vect ) {
+	PORTD ^= (1 << SEC);
+	incrementNumClicks();
+	updateCounters();
+}
 
 ISR( INT0_vect ) {
 	if( !(timeIsBeingSet) ) {
-//		PORTB |= (1 << PORTB1);
+		PORTC |= (1 << TSET);
 		timeIsBeingSet = 1;
 		stopTimer();
 	}
 	else {
-//		PORTB &= ~(1 << PORTB1);
+		PORTC &= ~(1 << TSET);
 		timeIsBeingSet = 0;
 		restartTimer();
 	}
@@ -147,51 +184,20 @@ int main(void) {
 		_delay_ms( 8 );
 		
 		if( timeIsBeingSet ) {
-			unsigned int hrClicks = (3600*2);
-			unsigned int minClicks = (60*2);
-			if( bit_is_set(PINB, H_PLUS) ) {
-				if( (numClicks+hrClicks) > (86400*2)) {
-					numClicks = (numClicks+hrClicks)-maxClicks;
-				}				
-				else {
-					numClicks = numClicks+hrClicks;
-				}
-			}
-			if( bit_is_set(PINB, H_MINUS) ) {
-				long temp = (numClicks-hrClicks);
-				if( temp < 0 ) {
-					numClicks = maxClicks-(hrClicks-numClicks);
-				}
-				else {
-					numClicks = numClicks-hrClicks;
-				}
-			}
-			if( bit_is_set(PIND, M_PLUS) ) {
-				if( numClicks+minClicks > (86400*2)) {
-					numClicks = (numClicks+minClicks)-maxClicks;
-				}
-				else {
-					numClicks = numClicks+minClicks;
-				}
-			}
-			if( bit_is_set(PINB, M_MINUS) ) {
-				long temp = (numClicks-minClicks);
-				if( temp < 0 ) {
-					numClicks = maxClicks-(minClicks-numClicks);
-				}
-				else {
-					numClicks = numClicks-minClicks;
-				}
-			}
 			
-			long numSeconds = numClicks/2;
-			int numMinutes = numSeconds/60;
-			int numHours = numMinutes/60;
-			
-			seconds = numSeconds%60;
-			minutes = numMinutes%60;
-			hours = numHours;
-
+			if( bit_is_set( PINB, H_PLUS ) ) {
+				incrementNumClicksBy( numClicksInAnHour );
+			}
+			if( bit_is_set( PINB, H_MINUS ) ) {
+				decrementNumClicksBy( numClicksInAnHour );
+			}
+			if( bit_is_set( PIND, M_PLUS ) ) {
+				incrementNumClicksBy( numClicksInAMinute );
+			}
+			if( bit_is_set( PINB, M_MINUS ) ) {
+				decrementNumClicksBy( numClicksInAMinute );
+			}
+			updateCounters();			
 		}
 	}
 }
