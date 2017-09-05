@@ -24,21 +24,22 @@
 #include <avr/interrupt.h>
 #include <util/delay.h>
 
-unsigned volatile long numClicks  = 0;
+unsigned const long NUM_MAX_CLICKS         = (86400*2);
+unsigned const int  NUM_CLICKS_IN_AN_HOUR  = (3600*2);
+unsigned const int  NUM_CLICKS_IN_A_MINUTE = (60*2);
+         const char SENSITIVITY            = 6;
 
-unsigned volatile const long numMaxClicks        = (86400*2);
-unsigned volatile const long numMinClicks        = 0;
-unsigned volatile const int  numClicksInAnHour   = (3600*2);
-unsigned volatile const int  numClicksInAMinute  = (60*2);
+unsigned volatile long numClicks  = 0;
 
 unsigned volatile int minutes = 0;
 unsigned volatile int hours   = 0;
 
+volatile char timeUpdated = 0;
 volatile char timeIsBeingSet = 0;
-volatile char hrPlusPrevState = 0;
-volatile char hrMinusPrevState = 0;
-volatile char minPlusPrevState = 0;
-volatile char minMinusPrevState = 0;
+volatile char hrPlusCntr = 0;
+volatile char hrMinusCntr = 0;
+volatile char minPlusCntr = 0;
+volatile char minMinusCntr = 0;
 
 // SETUP FUNCTIONS //////////////////////////////////////////////////////////
 
@@ -76,8 +77,8 @@ void restartTimer() {
 void setupInterrupt() {
 	// setup interrupt on INT0 pin
 	GICR |= (1 << INT0);
-	// trigger interrupt on falling edge
-	MCUCR |= 0x03 ;	
+	// trigger interrupt on rising edge
+	MCUCR |= ((1 << ISC01) | (1 << ISC00)) ;	
 }
 
 void setupOutputPins() {
@@ -89,6 +90,8 @@ void setupOutputPins() {
 	DDRB |= ~((1 << M_MINUS) | (1 << H_PLUS) | (1 << H_MINUS));
 	// set the seconds LED high
 	PORTC |= (1 << SEC);
+	// set the time set LED to low
+	PORTC &= ~(1 << TSET);
 }
 
 void setup() {
@@ -102,14 +105,14 @@ void setup() {
 
 void incrementNumClicks() {
 	numClicks++;
-	if( numClicks >= numMaxClicks ) {
+	if( numClicks >= NUM_MAX_CLICKS ) {
 		numClicks = 0;
 	}
 }
 
 void incrementNumClicksBy( int num ) {
-	if( (numClicks+num) >= numMaxClicks ) {
-		numClicks = (numClicks+num)-numMaxClicks;
+	if( (numClicks+num) >= NUM_MAX_CLICKS ) {
+		numClicks = (numClicks+num)-NUM_MAX_CLICKS;
 	}
 	else {
 		numClicks = numClicks + num;
@@ -119,7 +122,7 @@ void incrementNumClicksBy( int num ) {
 void decrementNumClicksBy( int num ) {
 	long temp = (numClicks-num);
 	if( temp < 0 ) {
-		numClicks = numMaxClicks-(num-numClicks);
+		numClicks = NUM_MAX_CLICKS-(num-numClicks);
 	}
 	else {
 		numClicks = numClicks - num;
@@ -133,6 +136,81 @@ void updateCounters() {
 	
 	minutes = numMinutes%60;
 	hours = numHours;	
+}
+
+void updateUnitsDigit( int minutesUnitsDigit, int hoursUnitsDigit ) {
+	PORTD &= ~( (1 << A_HR) | (1 << B_HR) | (1 << C_HR) | (1 << D_HR) );
+	PORTD |= (hoursUnitsDigit << 4);
+	PORTC &= ~( (1 << A_MIN) | (1 << B_MIN) | (1 << C_MIN) | (1 << D_MIN) );
+	PORTC |= (minutesUnitsDigit << 2);
+	PORTD ^= (1 << EN);
+} 
+
+void updateTensDigit( int minutesTensDigit, int hoursTensDigit ) {
+	PORTD &= ~( (1 << A_HR) | (1 << B_HR) | (1 << C_HR) | (1 << D_HR) );
+	PORTD |= (hoursTensDigit << 4);
+	PORTC &= ~( (1 << A_MIN) | (1 << B_MIN) | (1 << C_MIN) | (1 << D_MIN) );
+	PORTC |= (minutesTensDigit << 2);
+	PORTD ^= (1 << EN);
+}
+
+void checkHoursPlusButton() {
+	if( bit_is_set( PINB, H_PLUS ) ) {
+		hrPlusCntr++;
+		if( hrPlusCntr > SENSITIVITY ) {
+			hrPlusCntr = 0;
+			timeUpdated = 1;
+			incrementNumClicksBy( NUM_CLICKS_IN_AN_HOUR );
+		}
+	}	
+}
+
+void checkHoursMinusButton() {
+	if( bit_is_set( PINB, H_MINUS ) ) {
+		hrMinusCntr++;
+		if( hrMinusCntr > SENSITIVITY ) {
+			hrMinusCntr = 0;
+			timeUpdated = 1;
+			decrementNumClicksBy( NUM_CLICKS_IN_AN_HOUR );
+		}
+	}
+}
+
+void checkHoursUpdateButtons() {
+	checkHoursPlusButton();
+	checkHoursMinusButton();
+}
+
+void checkMinutesPlusButton() {
+	if( bit_is_set( PIND, M_PLUS ) ) {
+		minPlusCntr++;
+		if( minPlusCntr > SENSITIVITY ) {
+			minPlusCntr = 0;
+			timeUpdated = 1;
+			incrementNumClicksBy( NUM_CLICKS_IN_A_MINUTE );
+		}
+	}	
+}
+
+void checkMinutesMinusButton() {
+	if( bit_is_set( PINB, M_MINUS ) ) {
+		minMinusCntr++;
+		if( minMinusCntr > SENSITIVITY ) {
+			minMinusCntr = 0;
+			timeUpdated = 1;
+			decrementNumClicksBy( NUM_CLICKS_IN_A_MINUTE );
+		}
+	}
+}
+
+void checkMinutesUpdateButtons() {
+	checkMinutesPlusButton();
+	checkMinutesMinusButton();
+}
+
+void checkTimeUpdateButtons() {
+	checkHoursUpdateButtons();
+	checkMinutesUpdateButtons();
 }
 
 // INTERRUPTS //////////////////////////////////////////////////////////////////////
@@ -162,42 +240,26 @@ int main(void) {
 
 	setup();
 	
+	int minutesUnitsDigit, minutesTensDigit;
+	int hoursUnitsDigit, hoursTensDigit;
+	
 	while( 1 ) {
-		// TODO refactor this junk into methods.
-		int minutesUnitsDigit = minutes%10;
-		int minutesTensDigit = minutes/10;
+		minutesUnitsDigit = minutes%10;
+		minutesTensDigit = minutes/10;
 		
-		int hoursUnitsDigit = hours%10;
-		int hoursTensDigit = hours/10;
+		hoursUnitsDigit = hours%10;
+		hoursTensDigit = hours/10;
 		
-		PORTD &= ~( (1 << A_HR) | (1 << B_HR) | (1 << C_HR) | (1 << D_HR) );
-		PORTD |= (hoursUnitsDigit << 4);
-		PORTC &= ~( (1 << A_MIN) | (1 << B_MIN) | (1 << C_MIN) | (1 << D_MIN) );
-		PORTC |= (minutesUnitsDigit << 2);
-		PORTD ^= (1 << EN);
+		updateUnitsDigit( minutesUnitsDigit, hoursUnitsDigit );
 		_delay_ms( 8 );
-		PORTD &= ~( (1 << A_HR) | (1 << B_HR) | (1 << C_HR) | (1 << D_HR) );
-		PORTD |= (hoursTensDigit << 4);
-		PORTC &= ~( (1 << A_MIN) | (1 << B_MIN) | (1 << C_MIN) | (1 << D_MIN) );
-		PORTC |= (minutesTensDigit << 2);
-		PORTD ^= (1 << EN);
+		updateTensDigit( minutesTensDigit, hoursTensDigit );
 		_delay_ms( 8 );
 		
-		if( timeIsBeingSet ) {
-			
-			if( bit_is_set( PINB, H_PLUS ) ) {
-				incrementNumClicksBy( numClicksInAnHour );
+		if( timeIsBeingSet ) {			
+			checkTimeUpdateButtons();	
+			if( timeUpdated ) {		
+				updateCounters();
 			}
-			if( bit_is_set( PINB, H_MINUS ) ) {
-				decrementNumClicksBy( numClicksInAnHour );
-			}
-			if( bit_is_set( PIND, M_PLUS ) ) {
-				incrementNumClicksBy( numClicksInAMinute );
-			}
-			if( bit_is_set( PINB, M_MINUS ) ) {
-				decrementNumClicksBy( numClicksInAMinute );
-			}
-			updateCounters();			
 		}
 	}
 }
