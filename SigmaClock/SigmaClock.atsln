@@ -3,6 +3,8 @@ Microsoft Visual Studio Solution File, Format Version 11.00
 # Atmel Studio Solution File, Format Version 11.00
 Project("{54F91283-7BC4-4236-8FF9-10F437C3AD48}") = "SigmaClock", "SigmaClock.cproj", "{79EB3B07-DA27-4D62-A9E2-13FEE281A829}"
 EndProject
+Project("{54F91283-7BC4-4236-8FF9-10F437C3AD48}") = "PoI", "..\PoI\PoI.cproj", "{58EAB51C-13D1-4E02-A0F9-E24D34929225}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|AVR = Debug|AVR
@@ -13,6 +15,10 @@ Global
 		{79EB3B07-DA27-4D62-A9E2-13FEE281A829}.Debug|AVR.Build.0 = Debug|AVR
 		{79EB3B07-DA27-4D62-A9E2-13FEE281A829}.Release|AVR.ActiveCfg = Release|AVR
 		{79EB3B07-DA27-4D62-A9E2-13FEE281A829}.Release|AVR.Build.0 = Release|AVR
+		{58EAB51C-13D1-4E02-A0F9-E24D34929225}.Debug|AVR.ActiveCfg = Debug|AVR
+		{58EAB51C-13D1-4E02-A0F9-E24D34929225}.Debug|AVR.Build.0 = Debug|AVR
+		{58EAB51C-13D1-4E02-A0F9-E24D34929225}.Release|AVR.ActiveCfg = Release|AVR
+		{58EAB51C-13D1-4E02-A0F9-E24D34929225}.Release|AVR.Build.0 = Release|AVR
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

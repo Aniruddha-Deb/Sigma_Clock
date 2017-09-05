@@ -10,6 +10,11 @@
 #define C_MIN PORTC4
 #define D_MIN PORTC5
 
+#define H_MINUS PORTB0
+#define H_PLUS  PORTB1
+#define M_MINUS PORTB2
+#define M_PLUS  PORTD1
+
 #define EN    PORTD3
 #define SEC   PORTD0
 
@@ -18,6 +23,7 @@
 #include <util/delay.h>
 
 unsigned volatile long numClicks  = 0;
+unsigned volatile long maxClicks = (86400*2);
 
 unsigned volatile int seconds = 0;
 unsigned volatile int minutes = 0;
@@ -64,22 +70,18 @@ void setupInterrupt() {
 }
 
 void setupOutputPins() {
-	// initialize DDRD to be output
-	DDRD |= 0xFF;
-	// initialize DDRC to be output
+	// initialize DDRD
+	DDRD |= ~(1 << M_PLUS);
+	// initialize DDRC
 	DDRC |= 0xFF;
-	DDRB |= 0xFF;
+	// initialize DDRB
+	DDRB |= ~((1 << M_MINUS) | (1 << H_PLUS) | (1 << H_MINUS));
 	// set the seconds LED high
 	PORTC |= (1 << SEC);
 }
 
-void setupADC() {
-	// TODO setup the ADC
-}
-
 void setup() {
 	setupTimer();
-	setupADC();
 	setupOutputPins();
 	setupInterrupt();
 	sei();
@@ -106,13 +108,12 @@ volatile int timeIsBeingSet = 0;
 
 ISR( INT0_vect ) {
 	if( !(timeIsBeingSet) ) {
-		PORTB |= (1 << PORTB1);
+//		PORTB |= (1 << PORTB1);
 		timeIsBeingSet = 1;
 		stopTimer();
-		// TODO set the time using the ADC here.
 	}
 	else {
-		PORTB &= ~(1 << PORTB1);
+//		PORTB &= ~(1 << PORTB1);
 		timeIsBeingSet = 0;
 		restartTimer();
 	}
@@ -144,6 +145,54 @@ int main(void) {
 		PORTC |= (minutesTensDigit << 2);
 		PORTD ^= (1 << EN);
 		_delay_ms( 8 );
+		
+		if( timeIsBeingSet ) {
+			unsigned int hrClicks = (3600*2);
+			unsigned int minClicks = (60*2);
+			if( bit_is_set(PINB, H_PLUS) ) {
+				if( (numClicks+hrClicks) > (86400*2)) {
+					numClicks = (numClicks+hrClicks)-maxClicks;
+				}				
+				else {
+					numClicks = numClicks+hrClicks;
+				}
+			}
+			if( bit_is_set(PINB, H_MINUS) ) {
+				long temp = (numClicks-hrClicks);
+				if( temp < 0 ) {
+					numClicks = maxClicks-(hrClicks-numClicks);
+				}
+				else {
+					numClicks = numClicks-hrClicks;
+				}
+			}
+			if( bit_is_set(PIND, M_PLUS) ) {
+				if( numClicks+minClicks > (86400*2)) {
+					numClicks = (numClicks+minClicks)-maxClicks;
+				}
+				else {
+					numClicks = numClicks+minClicks;
+				}
+			}
+			if( bit_is_set(PINB, M_MINUS) ) {
+				long temp = (numClicks-minClicks);
+				if( temp < 0 ) {
+					numClicks = maxClicks-(minClicks-numClicks);
+				}
+				else {
+					numClicks = numClicks-minClicks;
+				}
+			}
+			
+			long numSeconds = numClicks/2;
+			int numMinutes = numSeconds/60;
+			int numHours = numMinutes/60;
+			
+			seconds = numSeconds%60;
+			minutes = numMinutes%60;
+			hours = numHours;
+
+		}
 	}
 }
 

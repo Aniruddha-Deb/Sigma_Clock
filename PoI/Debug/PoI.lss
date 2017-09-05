@@ -1,0 +1,186 @@
+
+PoI.elf:     file format elf32-avr
+
+Sections:
+Idx Name          Size      VMA       LMA       File off  Algn
+  0 .text         000000ca  00000000  00000000  00000074  2**1
+                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+  1 .data         00000000  00800060  000000ca  0000013e  2**0
+                  CONTENTS, ALLOC, LOAD, DATA
+  2 .stab         000006cc  00000000  00000000  00000140  2**2
+                  CONTENTS, READONLY, DEBUGGING
+  3 .stabstr      00000097  00000000  00000000  0000080c  2**0
+                  CONTENTS, READONLY, DEBUGGING
+  4 .comment      0000002f  00000000  00000000  000008a3  2**0
+                  CONTENTS, READONLY
+  5 .debug_aranges 00000030  00000000  00000000  000008d2  2**0
+                  CONTENTS, READONLY, DEBUGGING
+  6 .debug_info   000000e7  00000000  00000000  00000902  2**0
+                  CONTENTS, READONLY, DEBUGGING
+  7 .debug_abbrev 000000a6  00000000  00000000  000009e9  2**0
+                  CONTENTS, READONLY, DEBUGGING
+  8 .debug_line   00000104  00000000  00000000  00000a8f  2**0
+                  CONTENTS, READONLY, DEBUGGING
+  9 .debug_frame  0000007c  00000000  00000000  00000b94  2**2
+                  CONTENTS, READONLY, DEBUGGING
+ 10 .debug_str    000000a1  00000000  00000000  00000c10  2**0
+                  CONTENTS, READONLY, DEBUGGING
+ 11 .debug_loc    000000e0  00000000  00000000  00000cb1  2**0
+                  CONTENTS, READONLY, DEBUGGING
+ 12 .debug_ranges 00000020  00000000  00000000  00000d91  2**0
+                  CONTENTS, READONLY, DEBUGGING
+
+Disassembly of section .text:
+
+00000000 <__vectors>:
+   0:	12 c0       	rjmp	.+36     	; 0x26 <__ctors_end>
+   2:	19 c0       	rjmp	.+50     	; 0x36 <__bad_interrupt>
+   4:	18 c0       	rjmp	.+48     	; 0x36 <__bad_interrupt>
+   6:	17 c0       	rjmp	.+46     	; 0x36 <__bad_interrupt>
+   8:	16 c0       	rjmp	.+44     	; 0x36 <__bad_interrupt>
+   a:	15 c0       	rjmp	.+42     	; 0x36 <__bad_interrupt>
+   c:	14 c0       	rjmp	.+40     	; 0x36 <__bad_interrupt>
+   e:	13 c0       	rjmp	.+38     	; 0x36 <__bad_interrupt>
+  10:	12 c0       	rjmp	.+36     	; 0x36 <__bad_interrupt>
+  12:	11 c0       	rjmp	.+34     	; 0x36 <__bad_interrupt>
+  14:	10 c0       	rjmp	.+32     	; 0x36 <__bad_interrupt>
+  16:	0f c0       	rjmp	.+30     	; 0x36 <__bad_interrupt>
+  18:	0e c0       	rjmp	.+28     	; 0x36 <__bad_interrupt>
+  1a:	0d c0       	rjmp	.+26     	; 0x36 <__bad_interrupt>
+  1c:	1d c0       	rjmp	.+58     	; 0x58 <__vector_14>
+  1e:	0b c0       	rjmp	.+22     	; 0x36 <__bad_interrupt>
+  20:	0a c0       	rjmp	.+20     	; 0x36 <__bad_interrupt>
+  22:	09 c0       	rjmp	.+18     	; 0x36 <__bad_interrupt>
+  24:	08 c0       	rjmp	.+16     	; 0x36 <__bad_interrupt>
+
+00000026 <__ctors_end>:
+  26:	11 24       	eor	r1, r1
+  28:	1f be       	out	0x3f, r1	; 63
+  2a:	cf e5       	ldi	r28, 0x5F	; 95
+  2c:	d4 e0       	ldi	r29, 0x04	; 4
+  2e:	de bf       	out	0x3e, r29	; 62
+  30:	cd bf       	out	0x3d, r28	; 61
+  32:	0d d0       	rcall	.+26     	; 0x4e <main>
+  34:	48 c0       	rjmp	.+144    	; 0xc6 <_exit>
+
+00000036 <__bad_interrupt>:
+  36:	e4 cf       	rjmp	.-56     	; 0x0 <__vectors>
+
+00000038 <initADC>:
+#include <avr/io.h>
+#include <util/delay.h>
+#include <avr/interrupt.h>
+
+void initADC() {
+	ADCSRA |= ((1 << ADPS1) | (1 << ADPS0)); // sets frequency to 1000/8 kHz
+  38:	86 b1       	in	r24, 0x06	; 6
+  3a:	83 60       	ori	r24, 0x03	; 3
+  3c:	86 b9       	out	0x06, r24	; 6
+	ADMUX  |= (1 << REFS0); // Reference set to AVcc with capacitor at Aref
+  3e:	3e 9a       	sbi	0x07, 6	; 7
+	ADCSRA |= (1 << ADFR); // set free running mode
+  40:	35 9a       	sbi	0x06, 5	; 6
+	ADMUX  |= (1 << ADLAR); // operate ADC in 8 bit mode
+  42:	3d 9a       	sbi	0x07, 5	; 7
+	ADCSRA |= (1 << ADEN); // enable ADC
+  44:	37 9a       	sbi	0x06, 7	; 6
+	ADCSRA |= (1 << ADSC); // start ADC conversion
+  46:	36 9a       	sbi	0x06, 6	; 6
+	ADCSRA |= (1 << ADIE); // enable interrupts
+  48:	33 9a       	sbi	0x06, 3	; 6
+	sei();
+  4a:	78 94       	sei
+  4c:	08 95       	ret
+
+0000004e <main>:
+}
+
+int main( void ) {
+	
+	DDRD  |= 0xFF; 
+  4e:	81 b3       	in	r24, 0x11	; 17
+  50:	8f ef       	ldi	r24, 0xFF	; 255
+  52:	81 bb       	out	0x11, r24	; 17
+	initADC();
+  54:	f1 df       	rcall	.-30     	; 0x38 <initADC>
+  56:	ff cf       	rjmp	.-2      	; 0x56 <main+0x8>
+
+00000058 <__vector_14>:
+	while( 1 ) {
+	}
+} 
+
+ISR( ADC_vect ) {
+  58:	1f 92       	push	r1
+  5a:	0f 92       	push	r0
+  5c:	0f b6       	in	r0, 0x3f	; 63
+  5e:	0f 92       	push	r0
+  60:	11 24       	eor	r1, r1
+  62:	2f 93       	push	r18
+  64:	3f 93       	push	r19
+  66:	4f 93       	push	r20
+  68:	5f 93       	push	r21
+  6a:	6f 93       	push	r22
+  6c:	7f 93       	push	r23
+  6e:	8f 93       	push	r24
+  70:	9f 93       	push	r25
+  72:	ef 93       	push	r30
+	PORTD = 0x00;
+  74:	12 ba       	out	0x12, r1	; 18
+	int num = ADCH / 32;
+  76:	45 b1       	in	r20, 0x05	; 5
+  78:	42 95       	swap	r20
+  7a:	46 95       	lsr	r20
+  7c:	47 70       	andi	r20, 0x07	; 7
+  7e:	50 e0       	ldi	r21, 0x00	; 0
+	for( int i=0; i<num; i++ ) {
+  80:	14 16       	cp	r1, r20
+  82:	15 06       	cpc	r1, r21
+  84:	94 f4       	brge	.+36     	; 0xaa <__vector_14+0x52>
+  86:	80 e0       	ldi	r24, 0x00	; 0
+  88:	90 e0       	ldi	r25, 0x00	; 0
+		PORTD |= (1 << i);
+  8a:	61 e0       	ldi	r22, 0x01	; 1
+  8c:	70 e0       	ldi	r23, 0x00	; 0
+  8e:	e2 b3       	in	r30, 0x12	; 18
+  90:	9b 01       	movw	r18, r22
+  92:	08 2e       	mov	r0, r24
+  94:	02 c0       	rjmp	.+4      	; 0x9a <__vector_14+0x42>
+  96:	22 0f       	add	r18, r18
+  98:	33 1f       	adc	r19, r19
+  9a:	0a 94       	dec	r0
+  9c:	e2 f7       	brpl	.-8      	; 0x96 <__vector_14+0x3e>
+  9e:	2e 2b       	or	r18, r30
+  a0:	22 bb       	out	0x12, r18	; 18
+} 
+
+ISR( ADC_vect ) {
+	PORTD = 0x00;
+	int num = ADCH / 32;
+	for( int i=0; i<num; i++ ) {
+  a2:	01 96       	adiw	r24, 0x01	; 1
+  a4:	84 17       	cp	r24, r20
+  a6:	95 07       	cpc	r25, r21
+  a8:	94 f3       	brlt	.-28     	; 0x8e <__vector_14+0x36>
+		PORTD |= (1 << i);
+	}	
+  aa:	ef 91       	pop	r30
+  ac:	9f 91       	pop	r25
+  ae:	8f 91       	pop	r24
+  b0:	7f 91       	pop	r23
+  b2:	6f 91       	pop	r22
+  b4:	5f 91       	pop	r21
+  b6:	4f 91       	pop	r20
+  b8:	3f 91       	pop	r19
+  ba:	2f 91       	pop	r18
+  bc:	0f 90       	pop	r0
+  be:	0f be       	out	0x3f, r0	; 63
+  c0:	0f 90       	pop	r0
+  c2:	1f 90       	pop	r1
+  c4:	18 95       	reti
+
+000000c6 <_exit>:
+  c6:	f8 94       	cli
+
+000000c8 <__stop_program>:
+  c8:	ff cf       	rjmp	.-2      	; 0xc8 <__stop_program>
